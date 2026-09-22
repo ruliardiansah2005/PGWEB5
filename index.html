@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leaflet JS</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Style tombol filter */
+        .filter-button {
+            display: block;
+            width: 100%;
+            margin-top: 4px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .filter-button:hover {
+            background-color: #eee;
+        }
+
+        /* Filter hanya muncul ketika control layer dibuka */
+        .filter-penduduk {
+            display: block;
+            padding: 5px 0 0 0;
+            border-top: 1px solid #ccc;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+    <script>
+
+        // Inisialisasi peta
+        var map = L.map("map").setView([-8.33, 123.00], 13);
+
+        // Tile Layer Base Map
+        var basemap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        });
+
+        // Menambahkan basemap ke dalam peta
+        basemap.addTo(map);
+
+
+        // GeoJSON Point Sarana Prasarana
+        var toponimi = L.geoJSON(null, {
+            // Style
+
+            // onEachFeature
+
+            pointToLayer: function (feature, latlng) {
+                return L.marker(latlng, {
+                    icon: L.icon({
+                        iconUrl: "images/home_marker.png", // icon marker
+                        iconSize: [48, 48], // ukuran icon
+                        iconAnchor: [24, 48], // posisi icon terhadap titik (point)
+                        popupAnchor: [0, -48], // posisi popup terhadap icon
+                        tooltipAnchor: [-16, -30], // posisi tooltip terhadap icon
+                    }),
+                });
+            },
+
+            onEachFeature: function (feature, layer) {
+                // variable popup content
+                var popup_content = "<img src='images/" + feature.properties.image + "' alt='' width='200'>" + "<br>" +
+                    "Nama: " + feature.properties.TOPONIMI + "<br>" +
+                    "Koordinat: " + feature.geometry.coordinates[1] + ", " + feature.geometry.coordinates[0];
+
+                layer.on({
+                    click: function (e) {
+                        layer.bindPopup(popup_content).openPopup();
+                    },
+
+                    mouseover: function (e) {
+                        layer.bindTooltip(feature.properties.TOPONIMI, {
+                            direction: "left",
+                            sticky: true,
+                        }).openTooltip();
+                    },
+                });
+            },
+        });
+
+        $.getJSON("GeoJSON/toponimi.geojson", function (data) {
+            toponimi.addData(data); // Menambahkan data ke dalam GeoJSON Point Sarana Prasarana
+            map.addLayer(toponimi); // Menambahkan GeoJSON Point Sarana Prasarana ke dalam peta
+        });
+
+
+        // GeoJSON Polyline Jalan
+        var jalan = L.geoJSON(null, {
+            // Style
+
+            // onEachFeature
+            style: function (feature) {
+                return {
+                    color: "red",
+                    opacity: 1,
+                    weight: 3,
+                };
+            },
+
+            onEachFeature: function (feature, layer) {
+                // variable popup content
+                var popup_content = "Fungsi: " + feature.properties.NAMA_UNSUR + "<br>" +
+                    "Panjang (m): " + feature.properties.Panjang_km;
+
+                layer.on({
+                    click: function (e) {
+                        layer.bindPopup(popup_content).openPopup();
+                    },
+
+                    mouseover: function (e) {
+                        layer.bindTooltip(feature.properties.NAMA_UNSUR, {
+                            direction: "auto",
+                            sticky: true,
+                        }).openTooltip();
+                    },
+                });
+            },
+
+        });
+
+        $.getJSON("GeoJSON/jalan_panjang.geojson", function (data) {
+            jalan.addData(data); // Menambahkan data ke dalam GeoJSON Polyline Jalan
+            map.addLayer(jalan); // Menambahkan GeoJSON Polyline Jalan ke dalam peta
+        });
+
+
+        // Pane
+        map.createPane('paneNamaLayer');
+        map.getPane("paneNamaLayer").style.zIndex = 401;
+
+
+        // GeoJSON Polygon Jumlah Penduduk
+
+        var selectedClass = "Semua";
+        var dataPenduduk;
+
+        var jumlah_penduduk = L.geoJSON(null, {
+            // Style
+
+            // onEachFeature
+            //style: function (feature) {
+            // var Penduduk = feature.properties.Penduduk;
+
+            // var kelas;
+
+            // if (Penduduk >= 50000) {
+            //     kelas = "Tinggi";
+            // } else if (Penduduk >= 20000) {
+            //     kelas = "Sedang";
+            // } else {
+            //     kelas = "Rendah";
+            // }
+
+            // var symbologyCategorized = {
+            //     "Tinggi": "#d95f0e",
+            //     "Sedang": "#fec44f",
+            //     "Rendah": "#fff7bc"
+            // };
+
+            style: function (feature) {
+
+                if (feature.properties.Penduduk <= 12432) {
+                    return {
+                        opacity: 1,
+                        color: "gray",
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        fillColor: "#fff7bc" // Sangat rendah
+                    };
+                }
+
+                if (feature.properties.Penduduk <= 19748) {
+                    return {
+                        opacity: 1,
+                        color: "gray",
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        fillColor: "#fec44f" // Rendah
+                    };
+                }
+
+                if (feature.properties.Penduduk <= 27064) {
+                    return {
+                        opacity: 1,
+                        color: "gray",
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        fillColor: "#fe9929" // Sedang
+                    };
+                }
+
+                if (feature.properties.Penduduk <= 34380) {
+                    return {
+                        opacity: 1,
+                        color: "gray",
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        fillColor: "#ec7014" // Tinggi
+                    };
+                }
+
+                if (feature.properties.Penduduk <= 41696) {
+                    return {
+                        opacity: 1,
+                        color: "gray",
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        fillColor: "#cc4c02" // Sangat tinggi
+                    };
+                }
+            },
+
+
+            filter: function (feature, layer) {
+
+                var Penduduk = feature.properties.Penduduk;
+
+                if (Penduduk <= 12432) {
+                    feature.properties.kelas = "Sangat rendah";
+                } else if (Penduduk <= 19748) {
+                    feature.properties.kelas = "Rendah";
+                } else if (Penduduk <= 27064) {
+                    feature.properties.kelas = "Sedang";
+                } else if (Penduduk <= 34380) {
+                    feature.properties.kelas = "Tinggi";
+                } else if (Penduduk <= 41696) {
+                    feature.properties.kelas = "Sangat tinggi";
+                }
+
+                // Menampilkan semua kelas
+                if (selectedClass === "Semua") {
+                    return true;
+                }
+
+                // Menampilkan kelas sesuai pilihan filter
+                return feature.properties.kelas === selectedClass;
+            },
+
+
+            onEachFeature: function (feature, layer) {
+                // variable popup content
+                var popup_content = "Kecamatan: " + feature.properties.NAMOBJ + "<br>" +
+                    "Jumlah Penduduk: " + feature.properties.Penduduk + "<br>" +
+                    "Kelas: " + feature.properties.kelas;
+
+                layer.on({
+                    click: function (e) {
+                        layer.bindPopup(popup_content).openPopup();
+                    },
+
+                    mouseover: function (e) {
+                        layer.bindTooltip(feature.properties.NAMOBJ, {
+                            direction: "auto",
+                            sticky: true,
+                        }).openTooltip();
+                    },
+                });
+            },
+        });
+
+
+        $.getJSON("GeoJSON/jumlah_penduduk.geojson", function (data) {
+
+            dataPenduduk = data;
+
+            jumlah_penduduk.addData(data); // Menambahkan data ke dalam GeoJSON Polygon Jumlah Penduduk
+            map.addLayer(jumlah_penduduk); // Menambahkan GeoJSON Polygon Jumlah Penduduk ke dalam peta
+
+        });
+
+
+        // Fungsi untuk filter jumlah penduduk
+        function filterPenduduk(kelas) {
+
+            selectedClass = kelas;
+
+            // Menghapus layer sebelumnya
+            jumlah_penduduk.clearLayers();
+
+            // Menambahkan kembali data dengan filter
+            jumlah_penduduk.addData(dataPenduduk);
+        }
+
+
+        // control layer
+        var baseMaps = {
+            "OpenStreetMap": basemap
+        };
+
+        var overlayMaps = {
+            "Toponimi": toponimi,
+            "Jalan": jalan,
+            "Jumlah Penduduk": jumlah_penduduk
+        };
+
+        var controlLayers = L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+
+        // Membuat filter di dalam control layer
+        var filterContainer = document.createElement("div");
+
+        filterContainer.className = "filter-penduduk";
+
+        filterContainer.innerHTML = `
+            <b>Filter Jumlah Penduduk</b>
+
+            <button class="filter-button" onclick="filterPenduduk('Semua')">
+                Semua
+            </button>
+
+            <button class="filter-button" onclick="filterPenduduk('Sangat rendah')">
+                Sangat Rendah
+            </button>
+
+            <button class="filter-button" onclick="filterPenduduk('Rendah')">
+                Rendah
+            </button>
+
+            <button class="filter-button" onclick="filterPenduduk('Sedang')">
+                Sedang
+            </button>
+
+            <button class="filter-button" onclick="filterPenduduk('Tinggi')">
+                Tinggi
+            </button>
+
+            <button class="filter-button" onclick="filterPenduduk('Sangat tinggi')">
+                Sangat Tinggi
+            </button>
+        `;
+
+
+        // Memasukkan filter ke dalam control layer
+        var controlLayersContainer = controlLayers.getContainer();
+
+        controlLayersContainer.appendChild(filterContainer);
+
+
+        // Menutup filter ketika control layer ditutup
+        var controlLayersForm = controlLayersContainer.querySelector(".leaflet-control-layers-list");
+
+        filterContainer.style.display = "none";
+
+        controlLayersContainer.addEventListener("mouseenter", function () {
+            filterContainer.style.display = "block";
+        });
+
+        controlLayersContainer.addEventListener("mouseleave", function () {
+            filterContainer.style.display = "none";
+        });
+
+    </script>
+
+</body>
+
+</html>
